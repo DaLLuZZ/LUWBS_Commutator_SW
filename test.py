@@ -79,161 +79,206 @@ def verify_channel_states(inst, test_name, closed_channels):
 # connect and disconnect test
 def unit_test_conn_disconn(rm, test_name = "Connect & disconnect test"):
     print_test_prologue(test_name)
-    inst = resource_connect(rm)
-    resource_disconnect(inst)
-    print_test_epilogue(test_name)
+    inst = None
+    try:
+        inst = resource_connect(rm)
+        resource_disconnect(inst)
+        print_test_epilogue(test_name)
+    except Exception as e:
+        print_test_epilogue(test_name, f"Exception: {str(e)}")
+        if inst is not None:
+            try:
+                resource_disconnect(inst)
+            except:
+                pass
 
 # *IDN? query test
 def unit_test_idn_query(rm, test_name = "IDN query test"):
     print_test_prologue(test_name)
-    inst = resource_connect(rm)
-    idn = inst.query('*IDN?')
-    print(f"*IDN? -> {idn}")
-    resource_disconnect(inst)
-    print_test_epilogue(test_name)
+    inst = None
+    try:
+        inst = resource_connect(rm)
+        idn = inst.query('*IDN?')
+        print(f"*IDN? -> {idn}")
+        resource_disconnect(inst)
+        print_test_epilogue(test_name)
+    except Exception as e:
+        print_test_epilogue(test_name, f"Exception: {str(e)}")
+        if inst is not None:
+            try:
+                resource_disconnect(inst)
+            except:
+                pass
 
 # SCPI-99 ROUTe subsystem for 4x4 cross-point matrix switch test
 def unit_test_route_open(rm, test_name="SCPI-99 ROUTe:OPEN:ALL"):
     print_test_prologue(test_name)
-    inst = resource_connect(rm)
+    inst = None
+    try:
+        inst = resource_connect(rm)
 
-    # Test all valid bijections
-    # Generate all (4! = 24) valid permutations (bijections)
+        # Test all valid bijections
+        # Generate all (4! = 24) valid permutations (bijections)
 
-    inputs = [0, 1, 2, 3]
-    valid_permutations = []
+        inputs = [0, 1, 2, 3]
+        valid_permutations = []
 
-    for perm in itertools.permutations(inputs):
-        # perm[i] = output connected to input i
-        connections = [f"@{i}!{perm[i]}" for i in inputs]
-        valid_permutations.append(connections)
+        for perm in itertools.permutations(inputs):
+            # perm[i] = output connected to input i
+            connections = [f"@{i}!{perm[i]}" for i in inputs]
+            valid_permutations.append(connections)
 
-    print("\n--- Open all channels ---")
-    inst.write('ROUTe:OPEN:ALL')
-    time.sleep(env.VISA_QUERY_DELAY_SEC)
+        print("\n--- Open all channels ---")
+        inst.write('ROUTe:OPEN:ALL')
+        time.sleep(env.VISA_QUERY_DELAY_SEC)
 
-    if not verify_channel_states(inst, test_name, []):
+        if not verify_channel_states(inst, test_name, []):
+            resource_disconnect(inst)
+            return
+
         resource_disconnect(inst)
-        return
-
-    resource_disconnect(inst)
-    print_test_epilogue(test_name)
+        print_test_epilogue(test_name)
+    except Exception as e:
+        print_test_epilogue(test_name, f"Exception: {str(e)}")
+        if inst is not None:
+            try:
+                resource_disconnect(inst)
+            except:
+                pass
 
 # SCPI-99 ROUTe subsystem for 4x4 cross-point matrix switch test
 def unit_test_route_close_valid(rm, test_name="SCPI-99 valid ROUTe:CLOSe"):
     print_test_prologue(test_name)
-    inst = resource_connect(rm)
+    inst = None
+    try:
+        inst = resource_connect(rm)
 
-    # Test all valid bijections
-    # Generate all (4! = 24) valid permutations (bijections)
+        # Test all valid bijections
+        # Generate all (4! = 24) valid permutations (bijections)
 
-    inputs = [0, 1, 2, 3]
-    valid_permutations = []
+        inputs = [0, 1, 2, 3]
+        valid_permutations = []
 
-    for perm in itertools.permutations(inputs):
-        # perm[i] = output connected to input i
-        connections = [f"@{i}!{perm[i]}" for i in inputs]
-        valid_permutations.append(connections)
+        for perm in itertools.permutations(inputs):
+            # perm[i] = output connected to input i
+            connections = [f"@{i}!{perm[i]}" for i in inputs]
+            valid_permutations.append(connections)
 
-    print(f"Testing all {len(valid_permutations)} valid permutations (bijections)")
+        print(f"Testing all {len(valid_permutations)} valid permutations (bijections)")
 
-    for idx, connections in enumerate(valid_permutations, 1):
-        # Open all channels before each test for clean state
+        for idx, connections in enumerate(valid_permutations, 1):
+            # Open all channels before each test for clean state
+            inst.write('ROUTe:OPEN:ALL')
+            time.sleep(env.VISA_QUERY_DELAY_SEC)
+
+            # Close all 4 channels for this permutation
+            for channel in connections:
+                inst.write(f'ROUTe:CLOSe ({channel})')
+
+            time.sleep(env.VISA_QUERY_DELAY_SEC)
+
+            # Verify states for this permutation
+            if not verify_channel_states(inst, test_name, connections):
+                print(f"Failed at permutation {idx}/{len(valid_permutations)}: {connections}")
+                resource_disconnect(inst)
+                return
+
+            # uncomment to print progress
+            """
+            if idx % 6 == 0 or idx == len(valid_permutations):
+                print(f"Tested {idx}/{len(valid_permutations)} permutations")
+            """
+
+        # Final cleanup: open all channels
         inst.write('ROUTe:OPEN:ALL')
         time.sleep(env.VISA_QUERY_DELAY_SEC)
 
-        # Close all 4 channels for this permutation
-        for channel in connections:
-            inst.write(f'ROUTe:CLOSe ({channel})')
-
-        time.sleep(env.VISA_QUERY_DELAY_SEC)
-
-        # Verify states for this permutation
-        if not verify_channel_states(inst, test_name, connections):
-            print(f"Failed at permutation {idx}/{len(valid_permutations)}: {connections}")
-            resource_disconnect(inst)
-            return
-
-        # uncomment to print progress
-        """
-        if idx % 6 == 0 or idx == len(valid_permutations):
-            print(f"Tested {idx}/{len(valid_permutations)} permutations")
-        """
-
-    # Final cleanup: open all channels
-    inst.write('ROUTe:OPEN:ALL')
-    time.sleep(env.VISA_QUERY_DELAY_SEC)
-
-    resource_disconnect(inst)
-    print_test_epilogue(test_name)
+        resource_disconnect(inst)
+        print_test_epilogue(test_name)
+    except Exception as e:
+        print_test_epilogue(test_name, f"Exception: {str(e)}")
+        if inst is not None:
+            try:
+                resource_disconnect(inst)
+            except:
+                pass
 
 # SCPI-99 ROUTe subsystem for 4x4 cross-point matrix switch test
 def unit_test_route_close_invalid(rm, test_name="SCPI-99 invalid ROUTe:CLOSe"):
     print_test_prologue(test_name)
-    inst = resource_connect(rm)
+    inst = None
+    try:
+        inst = resource_connect(rm)
 
-    # Test all valid bijections
-    # Generate all (4! = 24) valid permutations (bijections)
+        # Test all valid bijections
+        # Generate all (4! = 24) valid permutations (bijections)
 
-    inputs = [0, 1, 2, 3]
-    valid_permutations = []
+        inputs = [0, 1, 2, 3]
+        valid_permutations = []
 
-    for perm in itertools.permutations(inputs):
-        # perm[i] = output connected to input i
-        connections = [f"@{i}!{perm[i]}" for i in inputs]
-        valid_permutations.append(connections)
+        for perm in itertools.permutations(inputs):
+            # perm[i] = output connected to input i
+            connections = [f"@{i}!{perm[i]}" for i in inputs]
+            valid_permutations.append(connections)
 
-    # Test 3a: Same input used twice
-    print("  Testing: Same input used twice (@0!0 and @0!1)")
-    inst.write('ROUTe:OPEN:ALL')
-    time.sleep(env.VISA_QUERY_DELAY_SEC)
+        # Test 3a: Same input used twice
+        print("  Testing: Same input used twice (@0!0 and @0!1)")
+        inst.write('ROUTe:OPEN:ALL')
+        time.sleep(env.VISA_QUERY_DELAY_SEC)
 
-    inst.write('ROUTe:CLOSe (@0!0)')
-    inst.write('ROUTe:CLOSe (@0!1)')
-    time.sleep(env.VISA_QUERY_DELAY_SEC)
+        inst.write('ROUTe:CLOSe (@0!0)')
+        inst.write('ROUTe:CLOSe (@0!1)')
+        time.sleep(env.VISA_QUERY_DELAY_SEC)
 
-    # In a properly implemented cross-point switch, the second closure should fail
-    # or the first should be opened. Verify that we don't have both closed.
-    state0 = inst.query('ROUTe:CLOSe:STATe? (@0!0)').strip()
-    state1 = inst.query('ROUTe:CLOSe:STATe? (@0!1)').strip()
+        # In a properly implemented cross-point switch, the second closure should fail
+        # or the first should be opened. Verify that we don't have both closed.
+        state0 = inst.query('ROUTe:CLOSe:STATe? (@0!0)').strip()
+        state1 = inst.query('ROUTe:CLOSe:STATe? (@0!1)').strip()
 
-    if state0 == '1' and state1 == '1':
-        print_test_epilogue(test_name, 
-            'Failed: Instrument allowed both @0!0 and @0!1 to be closed simultaneously '
-            '(same input 0) - violates cross-point matrix constraints')
+        if state0 == '1' and state1 == '1':
+            print_test_epilogue(test_name, 
+                'Failed: Instrument allowed both @0!0 and @0!1 to be closed simultaneously '
+                '(same input 0) - violates cross-point matrix constraints')
+            resource_disconnect(inst)
+            return
+
+        print("    Same input conflict correctly handled")
+
+        # Test 3b: Same output used twice
+        print("  Testing: Same output used twice (@0!0 and @1!0)")
+        inst.write('ROUTe:OPEN:ALL')
+        time.sleep(env.VISA_QUERY_DELAY_SEC)
+
+        inst.write('ROUTe:CLOSe (@0!0)')
+        inst.write('ROUTe:CLOSe (@1!0)')
+        time.sleep(env.VISA_QUERY_DELAY_SEC)
+
+        state0 = inst.query('ROUTe:CLOSe:STATe? (@0!0)').strip()
+        state1 = inst.query('ROUTe:CLOSe:STATe? (@1!0)').strip()
+
+        if state0 == '1' and state1 == '1':
+            print_test_epilogue(test_name, 
+                'Failed: Instrument allowed both @0!0 and @1!0 to be closed simultaneously '
+                '(same output 0) - violates cross-point matrix constraints')
+            resource_disconnect(inst)
+            return
+
+        print("    Same output conflict correctly handled")
+        print("  Invalid configuration handling passed")
+
+        # Final cleanup: open all channels
+        inst.write('ROUTe:OPEN:ALL')
+        time.sleep(env.VISA_QUERY_DELAY_SEC)
+
         resource_disconnect(inst)
-        return
-
-    print("    Same input conflict correctly handled")
-
-    # Test 3b: Same output used twice
-    print("  Testing: Same output used twice (@0!0 and @1!0)")
-    inst.write('ROUTe:OPEN:ALL')
-    time.sleep(env.VISA_QUERY_DELAY_SEC)
-
-    inst.write('ROUTe:CLOSe (@0!0)')
-    inst.write('ROUTe:CLOSe (@1!0)')
-    time.sleep(env.VISA_QUERY_DELAY_SEC)
-
-    state0 = inst.query('ROUTe:CLOSe:STATe? (@0!0)').strip()
-    state1 = inst.query('ROUTe:CLOSe:STATe? (@1!0)').strip()
-
-    if state0 == '1' and state1 == '1':
-        print_test_epilogue(test_name, 
-            'Failed: Instrument allowed both @0!0 and @1!0 to be closed simultaneously '
-            '(same output 0) - violates cross-point matrix constraints')
-        resource_disconnect(inst)
-        return
-
-    print("    Same output conflict correctly handled")
-    print("  Invalid configuration handling passed")
-
-    # Final cleanup: open all channels
-    inst.write('ROUTe:OPEN:ALL')
-    time.sleep(env.VISA_QUERY_DELAY_SEC)
-
-    resource_disconnect(inst)
-    print_test_epilogue(test_name)
+        print_test_epilogue(test_name)
+    except Exception as e:
+        print_test_epilogue(test_name, f"Exception: {str(e)}")
+        if inst is not None:
+            try:
+                resource_disconnect(inst)
+            except:
+                pass
 
 if __name__ == '__main__':
     main()
