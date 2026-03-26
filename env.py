@@ -1,7 +1,7 @@
 # Constants used by each module
 
 # Delay in seconds between write and read operations
-VISA_QUERY_DELAY_SEC = 0.1
+VISA_QUERY_DELAY_SEC = 0.05
 
 # Resource name used as pyvisa.ResourceManager().open_resource() argument
 VISA_RN_INT_TYPE  = "TCPIP"          # interface type
