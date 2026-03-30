@@ -19,6 +19,8 @@ def main():
     unit_test_route_closeq_range_valid(rm)
     unit_test_route_open(rm)
 
+    unit_test_system_error_count(rm)
+
 # common helpers
 
 def print_test_prologue(test_name):
@@ -435,6 +437,29 @@ def unit_test_route_closeq_range_valid(rm, test_name = "SCPI-99 valid ROUTe:CLOS
                 print(f"Failed at permutation {idx}/{len(valid_permutations)}: {connections}")
                 resource_disconnect(inst)
                 return
+
+        resource_disconnect(inst)
+        print_test_epilogue(test_name)
+    except Exception as e:
+        print_test_epilogue(test_name, f"Exception: {str(e)}")
+        if inst is not None:
+            try:
+                resource_disconnect(inst)
+            except:
+                pass
+
+def unit_test_system_error_count(rm, test_name = "SCPI-99 SYSTem:ERRor:COUNt?"):
+    print_test_prologue(test_name)
+    inst = None
+    try:
+        inst = resource_connect(rm)
+
+        err_cnt = int(inst.query("SYSTem:ERRor:COUNt?"))
+        print(f"Error count: {err_cnt}")
+
+        while (err_cnt > 0):
+            print(f"Error {err_cnt}: {inst.query("SYSTem:ERRor:NEXT?")}")
+            err_cnt -= 1
 
         resource_disconnect(inst)
         print_test_epilogue(test_name)
