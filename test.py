@@ -6,8 +6,8 @@ import itertools
 def main():
     rm = pyvisa.ResourceManager()
 
-    #print(f"Available ::INSTR (default) resources: {rm.list_resources()}")
-    #print(f"Available ::SOCKET resources: {rm.list_resources('?*::SOCKET')}")
+    print(f"Available ::INSTR (default) resources: {rm.list_resources()}")
+    print(f"Available ::SOCKET resources: {rm.list_resources('?*::SOCKET')}")
 
     unit_test_conn_disconn(rm)
     unit_test_idn_query(rm)
@@ -15,6 +15,8 @@ def main():
     unit_test_route_open(rm)
     unit_test_route_close_valid(rm)
     unit_test_route_close_invalid(rm)
+    unit_test_route_close_enum_valid(rm)
+    unit_test_route_closeq_range_valid(rm)
     unit_test_route_open(rm)
 
 # common helpers
@@ -32,7 +34,7 @@ def resource_connect(rm):
     print(f"Connecting to {env.VISA_RESOURCE_NAME}")
     inst = rm.open_resource(env.VISA_RESOURCE_NAME, read_termination = "\r\n")
     inst.query_delay = env.VISA_QUERY_DELAY_SEC
-    time.sleep(env.VISA_QUERY_DELAY_SEC)
+    time.sleep(env.VISA_CONNECT_DELAY_SEC)
     return inst
 
 def resource_disconnect(inst):
@@ -72,6 +74,94 @@ def verify_channel_states(inst, test_name, closed_channels):
                     f'Failed: Channel {channel} should be {"closed" if is_closed else "open"}, '
                     f'but ROUTe:OPEN? returned "{state}"')
                 return False
+    return True
+
+# Helper function to verify channel states (with enum argument)
+def verify_channel_states_enum(inst, test_name, closed_channels):
+    """
+    Verify that specified channels are closed and all others are open.
+    Args:
+        inst: pyvisa Resource object for current running test
+        test_name: String containing the name of current running test
+        closed_channels: List of channels that should be closed (format: 'X!Y')
+    Returns:
+        bool: True if all channel states are as expected, False otherwise
+    """
+    closed_set = set(closed_channels)
+    # Check all 16 possible channels in 4x4 matrix
+    channels = []
+    is_closed = []
+    for input_num in range(4):
+        for output_num in range(4):
+            channels.append(f"{input_num}!{output_num}")
+    for channel in channels:
+        is_closed.append(channel in closed_set)
+    chan_lst = "(@"
+    for ch in channels:
+        chan_lst += ch + ","
+    chan_lst = chan_lst[0:len(chan_lst)-1] # remove last comma
+    chan_lst = chan_lst + ")"
+    cmp_str = ""
+    for ic in is_closed:
+        if ic is True:
+            cmp_str += "1"
+        else:
+            cmp_str += "0"
+        cmp_str += ","
+    cmp_str = cmp_str[0:len(cmp_str)-1] # remove last comma
+    res = inst.query(f'ROUTe:CLOSe:STATe? {chan_lst}')
+    if (res != cmp_str):
+        print_test_epilogue(test_name, f'Failed: ROUTe:CLOSe:STATe? Got {res}; Expected {cmp_str}')
+        return False
+    cmp_str = cmp_str.replace("1", "2")
+    cmp_str = cmp_str.replace("0", "1")
+    cmp_str = cmp_str.replace("2", "0")
+    res = inst.query(f'ROUTe:OPEN? {chan_lst}')
+    if (res != cmp_str):
+        print_test_epilogue(test_name, f'Failed: ROUTe:OPEN? Got {res}; Expected {cmp_str}')
+        return False
+    return True
+
+# Helper function to verify channel states (with range argument)
+def verify_channel_states_range(inst, test_name, closed_channels):
+    """
+    Verify that specified channels are closed and all others are open.
+    Args:
+        inst: pyvisa Resource object for current running test
+        test_name: String containing the name of current running test
+        closed_channels: List of channels that should be closed (format: 'X!Y')
+    Returns:
+        bool: True if all channel states are as expected, False otherwise
+    """
+    closed_set = set(closed_channels)
+    # Check all 16 possible channels in 4x4 matrix
+    channels = []
+    is_closed = []
+    for input_num in range(4):
+        for output_num in range(4):
+            channels.append(f"{input_num}!{output_num}")
+    for channel in channels:
+        is_closed.append(channel in closed_set)
+    chan_lst = "(@0!0:3!3)"
+    cmp_str = ""
+    for ic in is_closed:
+        if ic is True:
+            cmp_str += "1"
+        else:
+            cmp_str += "0"
+        cmp_str += ","
+    cmp_str = cmp_str[0:len(cmp_str)-1] # remove last comma
+    res = inst.query(f'ROUTe:CLOSe:STATe? {chan_lst}')
+    if (res != cmp_str):
+        print_test_epilogue(test_name, f'Failed: ROUTe:CLOSe:STATe? Got {res}; Expected {cmp_str}')
+        return False
+    cmp_str = cmp_str.replace("1", "2")
+    cmp_str = cmp_str.replace("0", "1")
+    cmp_str = cmp_str.replace("2", "0")
+    res = inst.query(f'ROUTe:OPEN? {chan_lst}')
+    if (res != cmp_str):
+        print_test_epilogue(test_name, f'Failed: ROUTe:OPEN? Got {res}; Expected {cmp_str}')
+        return False
     return True
 
 # unit tests
@@ -128,9 +218,8 @@ def unit_test_route_open(rm, test_name="SCPI-99 ROUTe:OPEN:ALL"):
             connections = [f"@{i}!{perm[i]}" for i in inputs]
             valid_permutations.append(connections)
 
-        print("\n--- Open all channels ---")
+        print("Opening all channels")
         inst.write('ROUTe:OPEN:ALL')
-        time.sleep(env.VISA_QUERY_DELAY_SEC)
 
         if not verify_channel_states(inst, test_name, []):
             resource_disconnect(inst)
@@ -169,13 +258,10 @@ def unit_test_route_close_valid(rm, test_name="SCPI-99 valid ROUTe:CLOSe"):
         for idx, connections in enumerate(valid_permutations, 1):
             # Open all channels before each test for clean state
             inst.write('ROUTe:OPEN:ALL')
-            time.sleep(env.VISA_QUERY_DELAY_SEC)
 
             # Close all 4 channels for this permutation
             for channel in connections:
                 inst.write(f'ROUTe:CLOSe ({channel})')
-
-            time.sleep(env.VISA_QUERY_DELAY_SEC)
 
             # Verify states for this permutation
             if not verify_channel_states(inst, test_name, connections):
@@ -191,7 +277,6 @@ def unit_test_route_close_valid(rm, test_name="SCPI-99 valid ROUTe:CLOSe"):
 
         # Final cleanup: open all channels
         inst.write('ROUTe:OPEN:ALL')
-        time.sleep(env.VISA_QUERY_DELAY_SEC)
 
         resource_disconnect(inst)
         print_test_epilogue(test_name)
@@ -224,11 +309,9 @@ def unit_test_route_close_invalid(rm, test_name="SCPI-99 invalid ROUTe:CLOSe"):
         # Test 3a: Same input used twice
         print("  Testing: Same input used twice (@0!0 and @0!1)")
         inst.write('ROUTe:OPEN:ALL')
-        time.sleep(env.VISA_QUERY_DELAY_SEC)
 
         inst.write('ROUTe:CLOSe (@0!0)')
         inst.write('ROUTe:CLOSe (@0!1)')
-        time.sleep(env.VISA_QUERY_DELAY_SEC)
 
         # In a properly implemented cross-point switch, the second closure should fail
         # or the first should be opened. Verify that we don't have both closed.
@@ -247,11 +330,9 @@ def unit_test_route_close_invalid(rm, test_name="SCPI-99 invalid ROUTe:CLOSe"):
         # Test 3b: Same output used twice
         print("  Testing: Same output used twice (@0!0 and @1!0)")
         inst.write('ROUTe:OPEN:ALL')
-        time.sleep(env.VISA_QUERY_DELAY_SEC)
 
         inst.write('ROUTe:CLOSe (@0!0)')
         inst.write('ROUTe:CLOSe (@1!0)')
-        time.sleep(env.VISA_QUERY_DELAY_SEC)
 
         state0 = inst.query('ROUTe:CLOSe:STATe? (@0!0)').strip()
         state1 = inst.query('ROUTe:CLOSe:STATe? (@1!0)').strip()
@@ -268,7 +349,92 @@ def unit_test_route_close_invalid(rm, test_name="SCPI-99 invalid ROUTe:CLOSe"):
 
         # Final cleanup: open all channels
         inst.write('ROUTe:OPEN:ALL')
-        time.sleep(env.VISA_QUERY_DELAY_SEC)
+
+        resource_disconnect(inst)
+        print_test_epilogue(test_name)
+    except Exception as e:
+        print_test_epilogue(test_name, f"Exception: {str(e)}")
+        if inst is not None:
+            try:
+                resource_disconnect(inst)
+            except:
+                pass
+
+# ROUTe:CLOSe (@x!y,z!u) syntax check
+def unit_test_route_close_enum_valid(rm, test_name = "SCPI-99 valid ROUTe:CLOSe enum"):
+    print_test_prologue(test_name)
+    inst = None
+    try:
+        inst = resource_connect(rm)
+
+        # Test all valid bijections
+        # Generate all (4! = 24) valid permutations (bijections)
+
+        inputs = [0, 1, 2, 3]
+        valid_permutations = []
+
+        for perm in itertools.permutations(inputs):
+            # perm[i] = output connected to input i
+            connections = [f"{i}!{perm[i]}" for i in inputs]
+            valid_permutations.append(connections)
+
+        print(f"Testing all {len(valid_permutations)} valid permutations (bijections)")
+
+        for idx, connections in enumerate(valid_permutations, 1):
+            # Open all channels before each test for clean state
+            inst.write('ROUTe:OPEN:ALL')
+
+            # Close all 4 channels for this permutation
+            inst.write(f'ROUTe:CLOSe (@{connections[0]},{connections[1]},{connections[2]},{connections[3]})')
+
+            # Verify states for this permutation
+            if not verify_channel_states_enum(inst, test_name, connections):
+                print(f"Failed at permutation {idx}/{len(valid_permutations)}: {connections}")
+                resource_disconnect(inst)
+                return
+
+        resource_disconnect(inst)
+        print_test_epilogue(test_name)
+    except Exception as e:
+        print_test_epilogue(test_name, f"Exception: {str(e)}")
+        if inst is not None:
+            try:
+                resource_disconnect(inst)
+            except:
+                pass
+
+# ROUTe:CLOSe:STATe? (@0!0:3!3) syntax check
+def unit_test_route_closeq_range_valid(rm, test_name = "SCPI-99 valid ROUTe:CLOSe:STATe? range"):
+    print_test_prologue(test_name)
+    inst = None
+    try:
+        inst = resource_connect(rm)
+
+        # Test all valid bijections
+        # Generate all (4! = 24) valid permutations (bijections)
+
+        inputs = [0, 1, 2, 3]
+        valid_permutations = []
+
+        for perm in itertools.permutations(inputs):
+            # perm[i] = output connected to input i
+            connections = [f"{i}!{perm[i]}" for i in inputs]
+            valid_permutations.append(connections)
+
+        print(f"Testing all {len(valid_permutations)} valid permutations (bijections)")
+
+        for idx, connections in enumerate(valid_permutations, 1):
+            # Open all channels before each test for clean state
+            inst.write('ROUTe:OPEN:ALL')
+
+            # Close all 4 channels for this permutation
+            inst.write(f'ROUTe:CLOSe (@{connections[0]},{connections[1]},{connections[2]},{connections[3]})')
+
+            # Verify states for this permutation
+            if not verify_channel_states_range(inst, test_name, connections):
+                print(f"Failed at permutation {idx}/{len(valid_permutations)}: {connections}")
+                resource_disconnect(inst)
+                return
 
         resource_disconnect(inst)
         print_test_epilogue(test_name)
