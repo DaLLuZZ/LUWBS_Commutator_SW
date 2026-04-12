@@ -17,6 +17,8 @@ def main():
     unit_test_route_close_invalid(rm)
     unit_test_route_close_enum_valid(rm)
     unit_test_route_closeq_range_valid(rm)
+
+    unit_test_max_performance(rm)
     unit_test_route_open(rm)
 
     unit_test_system_error_count(rm)
@@ -122,6 +124,42 @@ def verify_channel_states_enum(inst, test_name, closed_channels):
     if (res != cmp_str):
         print_test_epilogue(test_name, f'Failed: ROUTe:OPEN? Got {res}; Expected {cmp_str}')
         return False
+    return True
+
+# Optimized helper function for performance testing (verify only closed channels)
+def verify_channel_states_enum_fast(inst, test_name, closed_channels):
+    """
+    Fast verification for performance testing - only checks that specified 
+    channels are closed and assumes others are open.
+    Args:
+        inst: pyvisa Resource object for current running test
+        test_name: String containing the name of current running test
+        closed_channels: List of channels that should be closed (format: 'X!Y')
+    Returns:
+        bool: True if all specified channels are closed, False otherwise
+    """
+    # Build channel list for only the channels we closed
+    chan_lst = "(@" + ",".join(closed_channels) + ")"
+
+    # Query close state for just these channels
+    res = inst.query(f'ROUTe:CLOSe:STATe? {chan_lst}')
+    expected = ",".join(["1"] * len(closed_channels))
+
+    if res != expected:
+        print_test_epilogue(test_name, f'Failed: ROUTe:CLOSe:STATe? Got {res}; Expected {expected}')
+        return False
+
+    # commented out for optimization purposes
+    """
+    # Also verify they are not open (OPEN? should return 0 for closed channels)
+    res = inst.query(f'ROUTe:OPEN? {chan_lst}')
+    expected = ",".join(["0"] * len(closed_channels))
+    """
+
+    if res != expected:
+        print_test_epilogue(test_name, f'Failed: ROUTe:OPEN? Got {res}; Expected {expected}')
+        return False
+
     return True
 
 # Helper function to verify channel states (with range argument)
@@ -460,6 +498,76 @@ def unit_test_system_error_count(rm, test_name = "SCPI-99 SYSTem:ERRor:COUNt?"):
         while (err_cnt > 0):
             print(f"Error {err_cnt}: {inst.query("SYSTem:ERRor:NEXT?")}")
             err_cnt -= 1
+
+        resource_disconnect(inst)
+        print_test_epilogue(test_name)
+    except Exception as e:
+        print_test_epilogue(test_name, f"Exception: {str(e)}")
+        if inst is not None:
+            try:
+                resource_disconnect(inst)
+            except:
+                pass
+
+def unit_test_max_performance(rm, test_name = "Maximum performance test (5 cycles of all valid permutations)"):
+    print_test_prologue(test_name)
+    inst = None
+    try:
+        inst = resource_connect(rm)
+
+        # Generate all 24 valid permutations (bijections)
+        inputs = [0, 1, 2, 3]
+        valid_permutations = []
+        
+        for perm in itertools.permutations(inputs):
+            connections = [f"{i}!{perm[i]}" for i in inputs]
+            valid_permutations.append(connections)
+
+        total_permutations = len(valid_permutations)
+        num_cycles = 5
+        total_switches = total_permutations * num_cycles
+
+        print(f"Testing {num_cycles} cycles of all {total_permutations} valid permutations")
+        print(f"Total channel closure commands: {total_switches}")
+
+        # Open all channels initially
+        inst.write('ROUTe:OPEN:ALL')
+
+        # Start timing
+        start_time = time.time()
+
+        # Perform 5 cycles of all valid permutations
+        for cycle in range(num_cycles):
+            for idx, connections in enumerate(valid_permutations, 1):
+                channel_list = "(@" + ",".join(connections) + ")"
+
+                # Close all 4 channels in a single command
+                inst.write(f'ROUTe:CLOSe {channel_list}')
+
+                # Verify states using single query with same channel list
+                if not verify_channel_states_enum_fast(inst, test_name, connections):
+                    print(f"Failed at cycle {cycle+1}, permutation {idx}/{total_permutations}: {connections}")
+                    resource_disconnect(inst)
+                    return
+
+                # Open all channels back
+                inst.write('ROUTe:OPEN:ALL')
+
+        # Final cleanup: open all channels
+        inst.write('ROUTe:OPEN:ALL')
+
+        # End timing
+        end_time = time.time()
+        total_time = end_time - start_time
+
+        # Calculate statistics
+        avg_time_per_switch = total_time / total_switches
+        avg_switching_frequency = 1.0 / avg_time_per_switch
+
+        print(f"Total time: {total_time:.3f} seconds")
+        print(f"Total channel closure commands: {total_switches}")
+        print(f"Average time per closure command: {avg_time_per_switch * 1000:.3f} ms")
+        print(f"Average switching frequency: {avg_switching_frequency:.1f} commands/second")
 
         resource_disconnect(inst)
         print_test_epilogue(test_name)
