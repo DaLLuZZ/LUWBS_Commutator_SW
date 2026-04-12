@@ -23,6 +23,8 @@ def main():
 
     unit_test_system_error_count(rm)
 
+    input()
+
 # common helpers
 
 def print_test_prologue(test_name):
