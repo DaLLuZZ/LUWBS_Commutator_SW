@@ -1,0 +1,81 @@
+Available ::INSTR (default) resources: ('TCPIP::192.168.137.25::INSTR',)
+Available ::SOCKET resources: ()
+
+Running test "Connect & disconnect test"
+Connecting to TCPIP::192.168.137.25::5025::SOCKET
+Disconnecting from TCPIP::192.168.137.25::5025::SOCKET
+"Connect & disconnect test" passed
+
+
+Running test "IDN query test"
+Connecting to TCPIP::192.168.137.25::5025::SOCKET
+*IDN? -> MISIS,LUWBS_SWITCH_SYSTEM,LUWBS001,2.0.1.2
+Disconnecting from TCPIP::192.168.137.25::5025::SOCKET
+"IDN query test" passed
+
+
+Running test "SCPI-99 ROUTe:OPEN:ALL"
+Connecting to TCPIP::192.168.137.25::5025::SOCKET
+Opening all channels
+Disconnecting from TCPIP::192.168.137.25::5025::SOCKET
+"SCPI-99 ROUTe:OPEN:ALL" passed
+
+
+Running test "SCPI-99 valid ROUTe:CLOSe"
+Connecting to TCPIP::192.168.137.25::5025::SOCKET
+Testing all 24 valid permutations (bijections)
+Disconnecting from TCPIP::192.168.137.25::5025::SOCKET
+"SCPI-99 valid ROUTe:CLOSe" passed
+
+
+Running test "SCPI-99 invalid ROUTe:CLOSe"
+Connecting to TCPIP::192.168.137.25::5025::SOCKET
+  Testing: Same input used twice (@0!0 and @0!1)
+    Same input conflict correctly handled
+  Testing: Same output used twice (@0!0 and @1!0)
+    Same output conflict correctly handled
+  Invalid configuration handling passed
+Disconnecting from TCPIP::192.168.137.25::5025::SOCKET
+"SCPI-99 invalid ROUTe:CLOSe" passed
+
+
+Running test "SCPI-99 valid ROUTe:CLOSe enum"
+Connecting to TCPIP::192.168.137.25::5025::SOCKET
+Testing all 24 valid permutations (bijections)
+Disconnecting from TCPIP::192.168.137.25::5025::SOCKET
+"SCPI-99 valid ROUTe:CLOSe enum" passed
+
+
+Running test "SCPI-99 valid ROUTe:CLOSe:STATe? range"
+Connecting to TCPIP::192.168.137.25::5025::SOCKET
+Testing all 24 valid permutations (bijections)
+Disconnecting from TCPIP::192.168.137.25::5025::SOCKET
+"SCPI-99 valid ROUTe:CLOSe:STATe? range" passed
+
+
+Running test "Maximum performance test (5 cycles of all valid permutations)"
+Connecting to TCPIP::192.168.137.25::5025::SOCKET
+Testing 5 cycles of all 24 valid permutations
+Total channel closure commands: 120
+Total time: 1.576 seconds
+Total channel closure commands: 120
+Average time per closure command: 13.136 ms
+Average switching frequency: 76.1 commands/second
+Disconnecting from TCPIP::192.168.137.25::5025::SOCKET
+"Maximum performance test (5 cycles of all valid permutations)" passed
+
+
+Running test "SCPI-99 ROUTe:OPEN:ALL"
+Connecting to TCPIP::192.168.137.25::5025::SOCKET
+Opening all channels
+Disconnecting from TCPIP::192.168.137.25::5025::SOCKET
+"SCPI-99 ROUTe:OPEN:ALL" passed
+
+
+Running test "SCPI-99 SYSTem:ERRor:COUNt?"
+Connecting to TCPIP::192.168.137.25::5025::SOCKET
+Error count: 2
+Error 2: -200,"Execution error"
+Error 1: -200,"Execution error"
+Disconnecting from TCPIP::192.168.137.25::5025::SOCKET
+"SCPI-99 SYSTem:ERRor:COUNt?" passed
